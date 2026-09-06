@@ -9,6 +9,7 @@ const {
 } = require('../controllers/productController');
 const { protect } = require('../middleware/authMiddleware');
 const { adminOnly } = require('../middleware/adminOnly');
+const validateObjectId = require('../middleware/validateObjectId');
 
 router
   .route('/')
@@ -17,8 +18,8 @@ router
 
 router
   .route('/:id')
-  .get(getProductById)
-  .put(protect, adminOnly, updateProduct)
-  .delete(protect, adminOnly, deleteProduct);
+  .get(validateObjectId('id'), getProductById)
+  .put(protect, adminOnly, validateObjectId('id'), updateProduct)
+  .delete(protect, adminOnly, validateObjectId('id'), deleteProduct);
 
 module.exports = router;
