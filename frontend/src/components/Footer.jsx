@@ -7,148 +7,72 @@ const Footer = () => {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer
-      style={{
-        backgroundColor: '#0b0b0b',
-        color: '#ffffff',
-        paddingTop: 'var(--space-48)',
-        paddingBottom: 'var(--space-32)',
-        borderTop: '1px solid #1a1a1a',
-        marginTop: 'auto',
-      }}
-    >
+    <footer className="site-footer">
       <div className="stride-container">
-        {/* Main Footer Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 'var(--space-32)',
-            paddingBottom: 'var(--space-32)',
-            borderBottom: '1px solid #1f1f1f',
-          }}
-        >
+        {/* Main Footer Layout */}
+        <div className="footer-top">
           {/* Brand Column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
-            <Link
-              to="/"
-              style={{
-                fontSize: '1.35rem',
-                fontWeight: '800',
-                letterSpacing: '-0.04em',
-                color: '#ffffff',
-                textDecoration: 'none',
-                textTransform: 'uppercase',
-              }}
-            >
+          <div className="footer-brand-col">
+            <Link to="/" className="footer-logo">
               Stride
             </Link>
-            <p style={{ margin: 0, fontSize: '14px', color: '#9ca3af' }}>
-              Move Better. Live Bolder.
+            <p className="footer-tagline">
+              For wherever your next move takes you.
             </p>
           </div>
 
-          {/* Column 2: Shop Navigation */}
-          <div>
-            <h4
-              style={{
-                fontSize: '13px',
-                fontWeight: '600',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: '#ffffff',
-                marginBottom: 'var(--space-12)',
-              }}
-            >
-              Shop
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
-              <Link to="/" style={{ fontSize: '14px', color: '#9ca3af' }}>
-                Home
-              </Link>
-              <Link to="/products" style={{ fontSize: '14px', color: '#9ca3af' }}>
-                Products
-              </Link>
-              <Link to="/cart" style={{ fontSize: '14px', color: '#9ca3af' }}>
-                Cart
-              </Link>
+          {/* Navigation Columns */}
+          <div className="footer-nav-cols">
+            {/* Shop Column */}
+            <div className="footer-col">
+              <h4 className="footer-col-heading">Shop</h4>
+              <ul className="footer-link-list">
+                <li><Link to="/products">All Footwear</Link></li>
+                <li><Link to="/products">New Arrivals</Link></li>
+                <li><Link to="/products">Collections</Link></li>
+              </ul>
             </div>
-          </div>
 
-          {/* Column 3: Account Navigation */}
-          <div>
-            <h4
-              style={{
-                fontSize: '13px',
-                fontWeight: '600',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: '#ffffff',
-                marginBottom: 'var(--space-12)',
-              }}
-            >
-              Account
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
-              {user ? (
-                <>
-                  <Link to="/orders" style={{ fontSize: '14px', color: '#9ca3af' }}>
-                    My Orders
-                  </Link>
-                  {user.role === 'admin' && (
-                    <Link to="/admin" style={{ fontSize: '14px', color: '#9ca3af' }}>
-                      Admin Dashboard
-                    </Link>
-                  )}
-                </>
-              ) : (
-                <>
-                  <Link to="/login" style={{ fontSize: '14px', color: '#9ca3af' }}>
-                    Login
-                  </Link>
-                  <Link to="/signup" style={{ fontSize: '14px', color: '#9ca3af' }}>
-                    Signup
-                  </Link>
-                </>
-              )}
+            {/* Account Column */}
+            <div className="footer-col">
+              <h4 className="footer-col-heading">Account</h4>
+              <ul className="footer-link-list">
+                {user ? (
+                  <>
+                    <li><Link to="/orders">Orders</Link></li>
+                    {user.role === 'admin' && (
+                      <li><Link to="/admin">Admin Dashboard</Link></li>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <li><Link to="/login">Sign In</Link></li>
+                    <li><Link to="/signup">Create Account</Link></li>
+                  </>
+                )}
+              </ul>
             </div>
-          </div>
 
-          {/* Column 4: Brand Philosophy */}
-          <div>
-            <h4
-              style={{
-                fontSize: '13px',
-                fontWeight: '600',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: '#ffffff',
-                marginBottom: 'var(--space-12)',
-              }}
-            >
-              About Stride
-            </h4>
-            <p style={{ margin: 0, fontSize: '14px', color: '#9ca3af', lineHeight: '1.5' }}>
-              Designed for Movement. Made for Every Day.
-            </p>
+            {/* Help Column */}
+            <div className="footer-col">
+              <h4 className="footer-col-heading">Help</h4>
+              <ul className="footer-link-list">
+                <li><Link to="/products">FAQs</Link></li>
+                <li><Link to="/products">Shipping</Link></li>
+                <li><Link to="/products">Returns</Link></li>
+              </ul>
+            </div>
           </div>
         </div>
 
         {/* Bottom Bar */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingTop: 'var(--space-24)',
-            gap: 'var(--space-12)',
-            fontSize: '13px',
-            color: '#9ca3af',
-          }}
-        >
-          <div>&copy; {currentYear} Stride. All rights reserved.</div>
-          <div>Premium Footwear</div>
+        <div className="footer-bottom">
+          <span className="copyright-text">&copy; {currentYear} Stride. All rights reserved.</span>
+          <div className="footer-legal-links">
+            <span className="legal-link">Terms</span>
+            <span className="legal-link">Privacy</span>
+            <span className="legal-link">Cookies</span>
+          </div>
         </div>
       </div>
     </footer>
