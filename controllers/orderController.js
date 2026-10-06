@@ -7,26 +7,45 @@ const Product = require('../models/Product');
 // @access  Private
 const createOrder = async (req, res) => {
   try {
+    const { shippingAddress } = req.body;
+
+    // Validate shipping address
+    if (
+      !shippingAddress ||
+      !shippingAddress.fullName ||
+      !shippingAddress.address ||
+      !shippingAddress.city ||
+      !shippingAddress.postalCode ||
+      !shippingAddress.phone
+    ) {
+      return res.status(400).json({
+        message: 'Please provide complete shipping address details (fullName, address, city, postalCode, phone).',
+      });
+    }
+
     const cart = await Cart.findOne({ userId: req.user.id }).populate('items.productId');
 
     if (!cart || !cart.items || cart.items.length === 0) {
-      return res.status(400).json({ message: 'Cart is empty' });
+      return res.status(400).json({ message: 'Cart is empty. Add items before checking out.' });
     }
 
-    // Step 1: Validate stock for all products in cart
+    // Step 1: Validate stock & positive integer quantity for all products in cart
     for (const item of cart.items) {
       const product = item.productId;
       if (!product) {
-        return res.status(400).json({ message: 'One or more products in your cart no longer exist' });
+        return res.status(400).json({ message: 'One or more products in your cart no longer exist.' });
+      }
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        return res.status(400).json({ message: `Invalid item quantity in cart for "${product.name}".` });
       }
       if (product.stock < item.quantity) {
         return res.status(400).json({
-          message: `Insufficient stock for product "${product.name}". Available stock: ${product.stock}, requested: ${item.quantity}`,
+          message: `Insufficient stock for "${product.name}". Available: ${product.stock}, requested: ${item.quantity}.`,
         });
       }
     }
 
-    // Step 2: Calculate total, construct order items, and decrement stock
+    // Step 2: Calculate server-authoritative total, construct order items, and decrement stock
     const orderItems = [];
     let totalAmount = 0;
 
@@ -48,11 +67,12 @@ const createOrder = async (req, res) => {
       await product.save();
     }
 
-    // Step 3: Create the Order
+    // Step 3: Create the Order with pending payment status
     const order = await Order.create({
       userId: req.user.id,
       items: orderItems,
       totalAmount,
+      shippingAddress,
       status: 'pending',
     });
 
@@ -71,7 +91,9 @@ const createOrder = async (req, res) => {
 // @access  Private
 const getMyOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    const orders = await Order.find({ userId: req.user.id })
+      .populate('items.productId', 'name imageUrl price')
+      .sort({ createdAt: -1 });
     return res.json(orders);
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -83,7 +105,7 @@ const getMyOrders = async (req, res) => {
 // @access  Private
 const getOrderById = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate('items.productId', 'name imageUrl price');
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -107,6 +129,7 @@ const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
       .populate('userId', 'name email')
+      .populate('items.productId', 'name imageUrl price')
       .sort({ createdAt: -1 });
 
     return res.json(orders);
