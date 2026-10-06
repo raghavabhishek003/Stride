@@ -161,6 +161,17 @@ const Home = () => {
                 <span className="category-tile-title">Court &rarr;</span>
               </div>
             </Link>
+
+            <Link to="/products?category=sandals" className="category-tile-card">
+              <img
+                src="https://images.unsplash.com/photo-1603808033192-082d6919d3e1?w=600&auto=format&fit=crop"
+                alt="Sandals footwear"
+                className="category-tile-img"
+              />
+              <div className="category-tile-overlay">
+                <span className="category-tile-title">Sandals &rarr;</span>
+              </div>
+            </Link>
           </div>
         </div>
       </section>

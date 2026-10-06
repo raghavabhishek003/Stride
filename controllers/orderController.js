@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
@@ -7,82 +8,170 @@ const Product = require('../models/Product');
 // @access  Private
 const createOrder = async (req, res) => {
   try {
-    const { shippingAddress } = req.body;
+    const { shippingAddress } = req.body ?? {};
 
-    // Validate shipping address
+    // Requirement 1: Validate shippingAddress as an object with non-empty trimmed string fields before any DB calls
     if (
       !shippingAddress ||
-      !shippingAddress.fullName ||
-      !shippingAddress.address ||
-      !shippingAddress.city ||
-      !shippingAddress.postalCode ||
-      !shippingAddress.phone
+      typeof shippingAddress !== 'object' ||
+      Array.isArray(shippingAddress)
     ) {
       return res.status(400).json({
         message: 'Please provide complete shipping address details (fullName, address, city, postalCode, phone).',
       });
     }
 
-    const cart = await Cart.findOne({ userId: req.user.id }).populate('items.productId');
+    const requiredFields = ['fullName', 'address', 'city', 'postalCode', 'phone'];
+    const trimmedAddress = {};
 
-    if (!cart || !cart.items || cart.items.length === 0) {
-      return res.status(400).json({ message: 'Cart is empty. Add items before checking out.' });
-    }
-
-    // Step 1: Validate stock & positive integer quantity for all products in cart
-    for (const item of cart.items) {
-      const product = item.productId;
-      if (!product) {
-        return res.status(400).json({ message: 'One or more products in your cart no longer exist.' });
-      }
-      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
-        return res.status(400).json({ message: `Invalid item quantity in cart for "${product.name}".` });
-      }
-      if (product.stock < item.quantity) {
+    for (const field of requiredFields) {
+      const val = shippingAddress[field];
+      if (typeof val !== 'string' || val.trim() === '') {
         return res.status(400).json({
-          message: `Insufficient stock for "${product.name}". Available: ${product.stock}, requested: ${item.quantity}.`,
+          message: 'Please provide complete shipping address details (fullName, address, city, postalCode, phone).',
         });
       }
+      trimmedAddress[field] = val.trim();
     }
 
-    // Step 2: Calculate server-authoritative total, construct order items, and decrement stock
-    const orderItems = [];
-    let totalAmount = 0;
+    let createdOrder;
 
-    for (const item of cart.items) {
-      const product = item.productId;
-      const priceAtPurchase = product.price;
-      const itemTotal = priceAtPurchase * item.quantity;
+    // Requirement 2: Use mongoose.connection.transaction(async (session) => {...})
+    await mongoose.connection.transaction(async (session) => {
+      // Requirement 6: Keep per-attempt variables inside the transaction callback
+      const orderItems = [];
+      let totalAmount = 0;
 
-      totalAmount += itemTotal;
+      // Requirement 2: Read cart INSIDE transaction attached to session
+      const cart = await Cart.findOne({ userId: req.user.id }).session(session);
 
-      orderItems.push({
-        productId: product._id,
-        quantity: item.quantity,
-        priceAtPurchase,
+      // Requirement 3: Reject empty cart
+      if (!cart || !cart.items || cart.items.length === 0) {
+        const err = new Error('Cart is empty. Add items before checking out.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Requirement 3: Combine duplicate product entries before checking stock & reject non-positive safe integer quantities
+      const itemMap = new Map();
+
+      for (const item of cart.items) {
+        if (!item || !item.productId) {
+          const err = new Error('One or more products in your cart no longer exist.');
+          err.statusCode = 400;
+          throw err;
+        }
+
+        if (!Number.isSafeInteger(item.quantity) || item.quantity <= 0) {
+          const err = new Error('Invalid item quantity in cart.');
+          err.statusCode = 400;
+          throw err;
+        }
+
+        const pIdStr = item.productId.toString();
+        if (itemMap.has(pIdStr)) {
+          const existing = itemMap.get(pIdStr);
+          const combinedQty = existing.quantity + item.quantity;
+          if (!Number.isSafeInteger(combinedQty)) {
+            const err = new Error('Invalid item quantity in cart.');
+            err.statusCode = 400;
+            throw err;
+          }
+          existing.quantity = combinedQty;
+        } else {
+          itemMap.set(pIdStr, {
+            productId: item.productId,
+            quantity: item.quantity,
+          });
+        }
+      }
+
+      // Requirement 2 & 4 & 5: Process items sequentially without Promise.all
+      for (const entry of itemMap.values()) {
+        const product = await Product.findById(entry.productId).session(session);
+
+        if (!product) {
+          const err = new Error('One or more products in your cart no longer exist.');
+          err.statusCode = 400;
+          throw err;
+        }
+
+        // Require Number.isFinite(price) && price >= 0 and Number.isSafeInteger(stock) && stock >= 0
+        if (
+          !Number.isFinite(product.price) ||
+          product.price < 0 ||
+          !Number.isSafeInteger(product.stock) ||
+          product.stock < 0
+        ) {
+          const err = new Error(`Invalid price or stock value for product "${product.name}".`);
+          err.statusCode = 400;
+          throw err;
+        }
+
+        if (product.stock < entry.quantity) {
+          const err = new Error(`Insufficient stock for "${product.name}". Available: ${product.stock}, requested: ${entry.quantity}.`);
+          err.statusCode = 400;
+          throw err;
+        }
+
+        // Requirement 4: Reduce stock using conditional atomic update
+        const updateResult = await Product.updateOne(
+          { _id: entry.productId, stock: { $gte: entry.quantity } },
+          { $inc: { stock: -entry.quantity } }
+        ).session(session);
+
+        if (updateResult.matchedCount === 0) {
+          const err = new Error(`Insufficient stock for product "${product.name}".`);
+          err.statusCode = 409;
+          throw err;
+        }
+
+        // Requirement 5: Calculate prices and totals from database products
+        const priceAtPurchase = product.price;
+        const itemTotal = priceAtPurchase * entry.quantity;
+
+        if (!Number.isFinite(itemTotal) || !Number.isFinite(totalAmount + itemTotal)) {
+          const err = new Error('Invalid total amount calculation.');
+          err.statusCode = 400;
+          throw err;
+        }
+
+        totalAmount += itemTotal;
+
+        orderItems.push({
+          productId: product._id,
+          quantity: entry.quantity,
+          priceAtPurchase,
+        });
+      }
+
+      // Requirement 5: Create pending order inside transaction
+      const newOrder = new Order({
+        userId: req.user.id,
+        items: orderItems,
+        totalAmount,
+        shippingAddress: trimmedAddress,
+        status: 'pending',
       });
 
-      // Decrement stock
-      product.stock -= item.quantity;
-      await product.save();
-    }
+      await newOrder.save({ session });
 
-    // Step 3: Create the Order with pending payment status
-    const order = await Order.create({
-      userId: req.user.id,
-      items: orderItems,
-      totalAmount,
-      shippingAddress,
-      status: 'pending',
+      // Requirement 5: Clear the same cart inside transaction
+      cart.items = [];
+      await cart.save({ session });
+
+      createdOrder = newOrder;
     });
 
-    // Step 4: Clear the user's cart
-    cart.items = [];
-    await cart.save();
-
-    return res.status(201).json(order);
+    // Requirement 6: Send HTTP response outside callback; 201 only after commit succeeds
+    return res.status(201).json(createdOrder);
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    // Requirement 6: Preserve useful 400/409 errors, log unexpected errors, return generic 500
+    if (error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    console.error('Order creation transaction failed:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
