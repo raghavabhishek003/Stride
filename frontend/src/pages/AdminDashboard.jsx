@@ -404,7 +404,7 @@ const AdminDashboard = () => {
                   <input
                     id="prod-category"
                     type="text"
-                    placeholder="e.g. running"
+                    placeholder="e.g. running, sandals, casual"
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   />

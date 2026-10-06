@@ -1270,9 +1270,15 @@ label {
   gap: var(--space-24);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   .category-tiles-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .category-tiles-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 

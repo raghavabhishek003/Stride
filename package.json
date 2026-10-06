@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node seed/seedProducts.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed:add": "node seed/addProducts.js",
+    "seed:fix-images": "node seed/fixSandalImages.js",
+    "test": "node tests/verifyOrderCheckout.test.js"
   },
   "keywords": [],
   "author": "",
